@@ -5,6 +5,7 @@ export function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
   useEffect(() => {
     api
@@ -13,6 +14,13 @@ export function PlansPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleSavedEditedPlan = () => {
+    setPlans((prev) =>
+      prev.map((p) => (p.id !== editingPlan?.id ? p : editingPlan))
+    );
+    setEditingPlan(null);
+  };
 
   async function handleCreate(input: CreatePlanInput) {
     try {
@@ -57,17 +65,66 @@ export function PlansPage() {
                 <th>€/kWh</th>
                 <th>Featured</th>
                 <th></th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {plans.map((p) => (
                 <tr key={p.id}>
-                  <td>{p.name}</td>
+                  <td>
+                    {p.id === editingPlan?.id ? (
+                      <input
+                        placeholder="Name"
+                        value={editingPlan.name ?? ""}
+                        onChange={(e) =>
+                          setEditingPlan({
+                            ...editingPlan,
+                            name: e.target.value,
+                          })
+                        }
+                        required
+                      />
+                    ) : (
+                      p.name
+                    )}
+                  </td>
                   <td>{p.renewablePercent}%</td>
-                  <td>{(p.priceCentsPerKwh / 100).toFixed(2)}</td>
+                  <td>
+                    {p.id === editingPlan?.id ? (
+                      <label className="row" style={{ gap: 8 }}>
+                        <span>€/kWh</span>
+                        <input
+                          type="number"
+                          value={editingPlan.priceCentsPerKwh ?? 0}
+                          min={1}
+                          onChange={(e) =>
+                            setEditingPlan({
+                              ...editingPlan,
+                              priceCentsPerKwh: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    ) : (
+                      <>{(p.priceCentsPerKwh / 100).toFixed(2)}</>
+                    )}
+                  </td>
                   <td>{p.isFeatured ? "Yes" : "No"}</td>
                   <td>
                     <button onClick={() => handleDelete(p.id)}>Delete</button>
+                  </td>
+                  <td>
+                    {editingPlan?.id === p.id ? (
+                      <button
+                        className="primary"
+                        type="submit"
+                        onClick={() => handleSavedEditedPlan()}
+                      >
+                        Save
+                      </button>
+                    ) : (
+                      <button onClick={() => setEditingPlan(p)}>Edit</button>
+                    )}
                   </td>
                 </tr>
               ))}
