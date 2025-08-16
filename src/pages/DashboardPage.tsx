@@ -12,25 +12,15 @@ export function DashboardPage() {
   const [plans, setPlans] = useState<Plan[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showToast, setShowToast] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>("");
 
   const featuredPlan = useMemo(() => plans?.find((f) => f.isFeatured), [plans]);
-  const userToAssignPlan: User | null = useMemo(() => {
-    let candidateUser = users?.find(
-      (u) => !u.isAdmin && u.planId !== featuredPlan?.id
-    );
-    if (!candidateUser) {
-      candidateUser = users?.find(
-        (u) => u.planId !== featuredPlan?.id && !u.planId
-      );
-    }
-    if (!candidateUser) {
-      candidateUser = users?.find((u) => !u.planId);
-    }
-    if (!candidateUser) {
-      return null;
-    }
-    return candidateUser;
-  }, [users, featuredPlan]);
+
+  // Simplified user selection logic
+  const userToAssignPlan: User | null = useMemo(
+    () => users?.find((u) => !u.isAdmin && !u.planId) || null,
+    [users]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -45,6 +35,18 @@ export function DashboardPage() {
       isMounted = false;
     };
   }, []);
+
+  // Handle toast cleanup with useEffect
+  useEffect(() => {
+    if (showToast) {
+      const timer = setTimeout(() => {
+        setShowToast(false);
+        setToastMessage("");
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showToast]);
 
   const stats: Stats | null = useMemo(() => {
     if (!users || !plans) return null;
@@ -63,23 +65,32 @@ export function DashboardPage() {
     };
   }, [users, plans]);
 
-  const handleChoosePlan = () => {
-    setUsers((prev) =>
-      prev
-        ? prev.map((u) =>
-            u?.id === userToAssignPlan?.id &&
-            !!featuredPlan &&
-            !!userToAssignPlan
-              ? { ...userToAssignPlan, planId: featuredPlan?.id }
-              : u
-          )
-        : null
-    );
-    setShowToast(true);
-    const timer = setTimeout(() => {
-      setShowToast(false);
-    }, 5000);
-    return () => clearTimeout(timer);
+  const handleChoosePlan = async () => {
+    if (!userToAssignPlan || !featuredPlan) return;
+
+    try {
+      // Clear any previous errors
+      setError(null);
+
+      // Call the API to assign the plan
+      await api.assignPlanToUser(userToAssignPlan.id, featuredPlan.id);
+
+      // Update local state optimistically
+      setUsers(
+        (prev) =>
+          prev?.map((u) =>
+            u.id === userToAssignPlan.id ? { ...u, planId: featuredPlan.id } : u
+          ) || null
+      );
+
+      // Show success toast
+      setToastMessage(
+        `${userToAssignPlan.name} is now on ${featuredPlan.name}!`
+      );
+      setShowToast(true);
+    } catch (error: any) {
+      setError(error.message || "Failed to assign plan");
+    }
   };
 
   return (
@@ -89,8 +100,16 @@ export function DashboardPage() {
           <h1>Energy Dashboard</h1>
         </div>
         {error && (
-          <div className="card" role="alert">
-            {error}
+          <div className="card error" role="alert">
+            <div
+              className="row"
+              style={{ justifyContent: "space-between", alignItems: "center" }}
+            >
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="small">
+                ✕
+              </button>
+            </div>
           </div>
         )}
         <div className="row">
@@ -110,15 +129,16 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="card">
-          <h2>All users have a plan</h2>
+          <h2>Featured Plan</h2>
           <FeaturedPlan
             plans={plans ?? []}
             handleChoosePlan={handleChoosePlan}
             planNotAssignable={!userToAssignPlan}
+            userToAssignPlan={userToAssignPlan}
           />
         </div>
       </div>
-      <div>{showToast && <div className="toast">Plan assigned</div>}</div>
+      {showToast && <div className="toast success">{toastMessage}</div>}
     </>
   );
 }
@@ -127,13 +147,16 @@ function FeaturedPlan({
   plans,
   handleChoosePlan,
   planNotAssignable,
+  userToAssignPlan,
 }: {
   plans: Plan[];
   handleChoosePlan: () => void;
   planNotAssignable: boolean;
+  userToAssignPlan: User | null;
 }) {
   const plan = plans.find((p) => p.isFeatured) ?? plans[0];
   if (!plan) return <div>No plans available.</div>;
+
   return (
     <div className="row" style={{ justifyContent: "space-between" }}>
       <div className="col">
@@ -145,10 +168,12 @@ function FeaturedPlan({
         </div>
       </div>
       {planNotAssignable ? (
-        <>No candidate user</>
+        <div style={{ color: "var(--muted)" }}>
+          All users already have plans
+        </div>
       ) : (
         <button className="primary" onClick={handleChoosePlan}>
-          Choose plan
+          Choose plan for {userToAssignPlan?.name}
         </button>
       )}
     </div>
