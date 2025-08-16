@@ -54,9 +54,9 @@ export class PageErrorBoundary extends Component<Props, State> {
             </button>
           </div>
 
-          {process.env.NODE_ENV === "development" && this.state.error && (
+          {this.state.error && (
             <details style={{ marginTop: "1rem", textAlign: "left" }}>
-              <summary>Error details (dev only)</summary>
+              <summary>Error details</summary>
               <pre
                 style={{
                   backgroundColor: "rgba(0,0,0,0.1)",
