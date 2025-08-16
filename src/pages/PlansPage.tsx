@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, type Plan, type CreatePlanInput } from "@/api/client";
 
+// Helper functions for price conversion
+const centsToEuros = (cents: number) => cents / 100;
+const eurosToCents = (euros: number) => Math.round(euros * 100);
+
 export function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,18 +119,23 @@ export function PlansPage() {
                         <span>€/kWh</span>
                         <input
                           type="number"
-                          value={editingPlan.priceCentsPerKwh ?? 0}
-                          min={1}
+                          step="0.01"
+                          min="0.01"
+                          value={centsToEuros(
+                            editingPlan.priceCentsPerKwh
+                          ).toFixed(2)}
                           onChange={(e) =>
                             setEditingPlan({
                               ...editingPlan,
-                              priceCentsPerKwh: Number(e.target.value),
+                              priceCentsPerKwh: eurosToCents(
+                                Number(e.target.value)
+                              ),
                             })
                           }
                         />
                       </label>
                     ) : (
-                      <>{(p.priceCentsPerKwh / 100).toFixed(2)}</>
+                      <>€{centsToEuros(p.priceCentsPerKwh).toFixed(2)}</>
                     )}
                   </td>
                   <td>
@@ -172,7 +181,7 @@ function PlanForm({
   featuredDisabled: boolean;
 }) {
   const [name, setName] = useState("");
-  const [price, setPrice] = useState(20);
+  const [price, setPrice] = useState(0.22);
   const [renewable, setRenewable] = useState(50);
   const [featured, setFeatured] = useState(false);
 
@@ -183,11 +192,12 @@ function PlanForm({
         e.preventDefault();
         onSubmit({
           name,
-          priceCentsPerKwh: Number(price),
+          priceCentsPerKwh: eurosToCents(price),
           renewablePercent: Number(renewable),
           isFeatured: featured,
         });
         setName("");
+        setPrice(0.22);
         setFeatured(false);
       }}
     >
@@ -201,8 +211,9 @@ function PlanForm({
         <span>€/kWh</span>
         <input
           type="number"
+          step="0.01"
+          min="0.01"
           value={price}
-          min={1}
           onChange={(e) => setPrice(Number(e.target.value))}
         />
       </label>
