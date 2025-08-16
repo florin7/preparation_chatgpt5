@@ -95,7 +95,18 @@ async function simulate<T>(
 
 export const api = {
   async listPlans() {
+    const savedPlans = localStorage.getItem("plans");
+    if (savedPlans) {
+      try {
+        return simulate([...JSON.parse(savedPlans)]);
+      } catch (err) {
+        console.error(err);
+      }
+    }
     return simulate([...plans]);
+  },
+  async savePlans(plans: Plan[]) {
+    localStorage.setItem("plans", JSON.stringify(plans));
   },
   async createPlan(input: CreatePlanInput) {
     const parsed = CreatePlanSchema.parse(input);

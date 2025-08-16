@@ -6,20 +6,37 @@ export function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     api
       .listPlans()
       .then(setPlans)
       .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setInitialized(true);
+      });
   }, []);
+
+  useEffect(() => {
+    initialized && api.savePlans(plans);
+  }, [plans, initialized]);
 
   const handleSavedEditedPlan = () => {
     setPlans((prev) =>
       prev.map((p) => (p.id !== editingPlan?.id ? p : editingPlan))
     );
     setEditingPlan(null);
+  };
+
+  const handleEditFeatured = (plan: Plan) => {
+    setPlans((prev) =>
+      prev.map((p) => ({
+        ...p,
+        isFeatured: plan.id === p.id && !plan.isFeatured,
+      }))
+    );
   };
 
   async function handleCreate(input: CreatePlanInput) {
@@ -50,7 +67,10 @@ export function PlansPage() {
       )}
       <div className="card">
         <h2>Create plan</h2>
-        <PlanForm onSubmit={handleCreate} />
+        <PlanForm
+          onSubmit={handleCreate}
+          featuredDisabled={!!plans.find((p) => p.isFeatured)}
+        />
       </div>
       <div className="card">
         <h2>Available plans</h2>
@@ -109,7 +129,15 @@ export function PlansPage() {
                       <>{(p.priceCentsPerKwh / 100).toFixed(2)}</>
                     )}
                   </td>
-                  <td>{p.isFeatured ? "Yes" : "No"}</td>
+                  <td>
+                    {
+                      <input
+                        type="checkbox"
+                        checked={p.isFeatured}
+                        onChange={() => handleEditFeatured(p)}
+                      />
+                    }
+                  </td>
                   <td>
                     <button onClick={() => handleDelete(p.id)}>Delete</button>
                   </td>
@@ -138,8 +166,10 @@ export function PlansPage() {
 
 function PlanForm({
   onSubmit,
+  featuredDisabled,
 }: {
   onSubmit: (input: CreatePlanInput) => void;
+  featuredDisabled: boolean;
 }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState(20);
@@ -158,6 +188,7 @@ function PlanForm({
           isFeatured: featured,
         });
         setName("");
+        setFeatured(false);
       }}
     >
       <input
@@ -189,6 +220,7 @@ function PlanForm({
         <input
           type="checkbox"
           checked={featured}
+          disabled={featuredDisabled}
           onChange={(e) => setFeatured(e.target.checked)}
         />
         <span>Featured</span>
