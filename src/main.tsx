@@ -7,6 +7,7 @@ import { PlansPage } from "@/pages/PlansPage";
 import { BillingPage } from "@/pages/BillingPage";
 import { AdminPage } from "@/pages/AdminPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "@/styles.css";
 
 const router = createBrowserRouter([
@@ -25,6 +26,8 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ErrorBoundary>
+      <RouterProvider router={router} />
+    </ErrorBoundary>
   </React.StrictMode>
 );

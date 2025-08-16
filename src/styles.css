@@ -92,6 +92,11 @@ button.primary,
   color: #0a0f14;
   border-color: transparent;
 }
+button.small {
+  padding: 4px 8px;
+  font-size: 0.875rem;
+}
+
 input,
 select {
   background: #0f141d;
@@ -138,4 +143,36 @@ h2 {
   margin: 0 0 8px;
   color: var(--muted);
   font-weight: 500;
+}
+
+/* Error styling */
+.error {
+  border-color: #e53e3e !important;
+  background: rgba(229, 62, 62, 0.1) !important;
+}
+
+.error-boundary {
+  background: rgba(229, 62, 62, 0.1) !important;
+  border-color: #e53e3e !important;
+}
+
+/* Toast/notification styling */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: 400px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }

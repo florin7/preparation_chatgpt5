@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Plan, type CreatePlanInput } from "@/api/client";
+import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 
 // Helper functions for price conversion
 const centsToEuros = (cents: number) => cents / 100;
@@ -11,6 +12,23 @@ export function PlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [operationErrors, setOperationErrors] = useState<
+    Record<string, string>
+  >({});
+
+  // Clear errors when component unmounts or when starting new operations
+  const clearErrors = () => {
+    setError(null);
+    setOperationErrors({});
+  };
+
+  const clearOperationError = (operation: string) => {
+    setOperationErrors((prev) => {
+      const newErrors = { ...prev };
+      delete newErrors[operation];
+      return newErrors;
+    });
+  };
 
   useEffect(() => {
     api
@@ -27,158 +45,226 @@ export function PlansPage() {
     initialized && api.savePlans(plans);
   }, [plans, initialized]);
 
-  const handleSavedEditedPlan = () => {
-    setPlans((prev) =>
-      prev.map((p) => (p.id !== editingPlan?.id ? p : editingPlan))
-    );
-    setEditingPlan(null);
+  const handleSavedEditedPlan = async () => {
+    if (!editingPlan) return;
+
+    try {
+      clearErrors();
+      // Simulate API call for editing
+      await api.savePlans(plans);
+      setPlans((prev) =>
+        prev.map((p) => (p.id !== editingPlan?.id ? p : editingPlan))
+      );
+      setEditingPlan(null);
+    } catch (e: any) {
+      setOperationErrors((prev) => ({
+        ...prev,
+        edit: e.message || "Failed to save changes",
+      }));
+    }
   };
 
-  const handleEditFeatured = (plan: Plan) => {
-    setPlans((prev) =>
-      prev.map((p) => ({
+  const handleEditFeatured = async (plan: Plan) => {
+    try {
+      clearErrors();
+      const updatedPlans = plans.map((p) => ({
         ...p,
         isFeatured: plan.id === p.id && !plan.isFeatured,
-      }))
-    );
+      }));
+      await api.savePlans(updatedPlans);
+      setPlans(updatedPlans);
+    } catch (e: any) {
+      setOperationErrors((prev) => ({
+        ...prev,
+        featured: e.message || "Failed to update featured status",
+      }));
+    }
   };
 
   async function handleCreate(input: CreatePlanInput) {
     try {
+      clearErrors();
       const created = await api.createPlan(input);
       setPlans((prev) => [created, ...prev]);
     } catch (e: any) {
-      setError(e.message);
+      setOperationErrors((prev) => ({
+        ...prev,
+        create: e.message || "Failed to create plan",
+      }));
     }
   }
 
   async function handleDelete(id: string) {
     try {
+      clearErrors();
       await api.deletePlan(id);
       setPlans((prev) => prev.filter((p) => p.id !== id));
     } catch (e: any) {
-      setError(e.message);
+      setOperationErrors((prev) => ({
+        ...prev,
+        delete: e.message || "Failed to delete plan",
+      }));
     }
   }
 
   return (
-    <div className="stack-lg">
-      <h1>Plans</h1>
-      {error && (
-        <div className="card" role="alert">
-          {error}
+    <PageErrorBoundary
+      pageName="Plans"
+      onRetry={() => window.location.reload()}
+    >
+      <div className="stack-lg">
+        <h1>Plans</h1>
+
+        {/* Global error */}
+        {error && (
+          <div className="card error" role="alert">
+            <div
+              className="row"
+              style={{ justifyContent: "space-between", alignItems: "center" }}
+            >
+              <span>{error}</span>
+              <button onClick={clearErrors} className="small">
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Operation-specific errors */}
+        {Object.entries(operationErrors).map(([operation, message]) => (
+          <div key={operation} className="card error" role="alert">
+            <div
+              className="row"
+              style={{ justifyContent: "space-between", alignItems: "center" }}
+            >
+              <span>{message}</span>
+              <button
+                onClick={() => clearOperationError(operation)}
+                className="small"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <div className="card">
+          <h2>Create plan</h2>
+          <PlanForm
+            onSubmit={handleCreate}
+            featuredDisabled={!!plans.find((p) => p.isFeatured)}
+            error={operationErrors.create}
+            onClearError={() => clearOperationError("create")}
+          />
         </div>
-      )}
-      <div className="card">
-        <h2>Create plan</h2>
-        <PlanForm
-          onSubmit={handleCreate}
-          featuredDisabled={!!plans.find((p) => p.isFeatured)}
-        />
-      </div>
-      <div className="card">
-        <h2>Available plans</h2>
-        {loading ? (
-          <div>Loading…</div>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Renewable %</th>
-                <th>€/kWh</th>
-                <th>Featured</th>
-                <th></th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    {p.id === editingPlan?.id ? (
-                      <input
-                        placeholder="Name"
-                        value={editingPlan.name ?? ""}
-                        onChange={(e) =>
-                          setEditingPlan({
-                            ...editingPlan,
-                            name: e.target.value,
-                          })
-                        }
-                        required
-                      />
-                    ) : (
-                      p.name
-                    )}
-                  </td>
-                  <td>{p.renewablePercent}%</td>
-                  <td>
-                    {p.id === editingPlan?.id ? (
-                      <label className="row" style={{ gap: 8 }}>
-                        <span>€/kWh</span>
+        <div className="card">
+          <h2>Available plans</h2>
+          {loading ? (
+            <div>Loading…</div>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Renewable %</th>
+                  <th>€/kWh</th>
+                  <th>Featured</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {plans.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      {p.id === editingPlan?.id ? (
                         <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={centsToEuros(
-                            editingPlan.priceCentsPerKwh
-                          ).toFixed(2)}
+                          placeholder="Name"
+                          value={editingPlan.name ?? ""}
                           onChange={(e) =>
                             setEditingPlan({
                               ...editingPlan,
-                              priceCentsPerKwh: eurosToCents(
-                                Number(e.target.value)
-                              ),
+                              name: e.target.value,
                             })
                           }
+                          required
                         />
-                      </label>
-                    ) : (
-                      <>€{centsToEuros(p.priceCentsPerKwh).toFixed(2)}</>
-                    )}
-                  </td>
-                  <td>
-                    {
-                      <input
-                        type="checkbox"
-                        checked={p.isFeatured}
-                        onChange={() => handleEditFeatured(p)}
-                      />
-                    }
-                  </td>
-                  <td>
-                    <button onClick={() => handleDelete(p.id)}>Delete</button>
-                  </td>
-                  <td>
-                    {editingPlan?.id === p.id ? (
-                      <button
-                        className="primary"
-                        type="submit"
-                        onClick={() => handleSavedEditedPlan()}
-                      >
-                        Save
-                      </button>
-                    ) : (
-                      <button onClick={() => setEditingPlan(p)}>Edit</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+                      ) : (
+                        p.name
+                      )}
+                    </td>
+                    <td>{p.renewablePercent}%</td>
+                    <td>
+                      {p.id === editingPlan?.id ? (
+                        <label className="row" style={{ gap: 8 }}>
+                          <span>€/kWh</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={centsToEuros(
+                              editingPlan.priceCentsPerKwh
+                            ).toFixed(2)}
+                            onChange={(e) =>
+                              setEditingPlan({
+                                ...editingPlan,
+                                priceCentsPerKwh: eurosToCents(
+                                  Number(e.target.value)
+                                ),
+                              })
+                            }
+                          />
+                        </label>
+                      ) : (
+                        <>€{centsToEuros(p.priceCentsPerKwh).toFixed(2)}</>
+                      )}
+                    </td>
+                    <td>
+                      {
+                        <input
+                          type="checkbox"
+                          checked={p.isFeatured}
+                          onChange={() => handleEditFeatured(p)}
+                        />
+                      }
+                    </td>
+                    <td>
+                      <button onClick={() => handleDelete(p.id)}>Delete</button>
+                    </td>
+                    <td>
+                      {editingPlan?.id === p.id ? (
+                        <button
+                          className="primary"
+                          type="submit"
+                          onClick={() => handleSavedEditedPlan()}
+                        >
+                          Save
+                        </button>
+                      ) : (
+                        <button onClick={() => setEditingPlan(p)}>Edit</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
-    </div>
+    </PageErrorBoundary>
   );
 }
 
 function PlanForm({
   onSubmit,
   featuredDisabled,
+  error,
+  onClearError,
 }: {
   onSubmit: (input: CreatePlanInput) => void;
   featuredDisabled: boolean;
+  error?: string;
+  onClearError: () => void;
 }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState(0.22);
@@ -201,6 +287,19 @@ function PlanForm({
         setFeatured(false);
       }}
     >
+      {error && (
+        <div className="card error" role="alert">
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "center" }}
+          >
+            <span>{error}</span>
+            <button onClick={onClearError} className="small">
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
       <input
         placeholder="Name"
         value={name}
